@@ -175,7 +175,8 @@ if 'location/lat' in df.columns and 'location/lng' in df.columns:
     df.loc[geo_data.index, 'region_cluster'] = kmeans.fit_predict(geo_data)
 
     print("\nClusters géographiques ajoutés :")
-    display(df[['title', 'city', 'region_cluster']].head())
+    st.dataframe(df[['title', 'city', 'region_cluster']].head())
+
 else:
     print("Colonnes de latitude/longitude non trouvées.")
 
