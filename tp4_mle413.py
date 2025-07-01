@@ -10,7 +10,7 @@ Original file is located at
 """
 
 # Étape 1 : Chargement et Nettoyage des Données
-
+import streamlit as st
 import pandas as pd
 import numpy as np
 
