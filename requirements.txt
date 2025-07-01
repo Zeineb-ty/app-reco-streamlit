@@ -5,5 +5,5 @@ matplotlib
 scikit-learn
 plotly
 deep-translator
-
+folium
 

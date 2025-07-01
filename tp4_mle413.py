@@ -338,7 +338,6 @@ plt.ylabel("Nombre de restaurants")
 plt.grid(True)
 plt.show()
 
-!pip install folium
 
 import folium
 
