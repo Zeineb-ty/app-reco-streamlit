@@ -24,7 +24,7 @@ print("Après suppression colonnes vides :", df.shape)
 
 # 1.3 Afficher un aperçu des données
 print("\nAperçu des données :")
-display(df.head())
+st.dataframe(df.head())
 
 # 1.4 Affichage des colonnes avec taux de valeurs manquantes
 missing_percent = df.isnull().mean() * 100
@@ -49,7 +49,8 @@ print("\nDimensions après nettoyage :", df.shape)
 
 # 1.7 Aperçu final des données
 print("\nAperçu final :")
-display(df.head())
+st.dataframe(df.head())
+
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 # 2.1 Normalisation des colonnes de scores
@@ -66,7 +67,7 @@ for col in engagement_cols:
 
 # 2.3 Affichage après transformation
 print("\nDonnées après normalisation et standardisation :")
-display(df.head())
+st.dataframe(df.head())
 
 # ------------------------------------------------------
 # Étape 3 : Prétraitement des Avis Textuels
@@ -209,7 +210,8 @@ else:
     print(" Colonne 'reviews/0/text_clean' manquante pour TF-IDF.")
 
 # Aperçu final
-display(df.head())
+st.dataframe(df.head())
+
 
 # ÉTAPE 6 - Modélisation du Système de Recommandation
 
