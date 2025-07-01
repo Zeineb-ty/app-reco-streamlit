@@ -100,7 +100,8 @@ if 'reviews/0/text' in df.columns:
     df['reviews/0/text_clean'] = df['reviews/0/text'].apply(preprocess_text)
 
 print("\nAperçu du texte original et nettoyé :")
-display(df[['reviews/0/text', 'reviews/0/text_clean']].head())
+st.dataframe(df[['reviews/0/text', 'reviews/0/text_clean']].head())
+
 
 
 # Importation
@@ -159,7 +160,8 @@ if 'reviews/0/text' in df.columns:
 
 # Aperçu du résultat
 print("\nAperçu du texte nettoyé :")
-display(df[['reviews/0/text', 'reviews/0/text_clean']].head())
+st.dataframe(df[['reviews/0/text', 'reviews/0/text_clean']].head())
+
 
 # Étape 4 : Traitement de la Localisation (création de clusters de proximité)
 
