@@ -101,8 +101,6 @@ if 'reviews/0/text' in df.columns:
 print("\nAperçu du texte original et nettoyé :")
 display(df[['reviews/0/text', 'reviews/0/text_clean']].head())
 
-# Installation (si pas encore installé)
-!pip install deep-translator
 
 # Importation
 from deep_translator import GoogleTranslator
