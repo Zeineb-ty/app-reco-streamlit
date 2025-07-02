@@ -1,57 +1,66 @@
+
+import streamlit as st
 import pandas as pd
 import numpy as np
-import streamlit as st
 from sklearn.decomposition import TruncatedSVD
 
-# Chargement des données
+# Chargement des données (simulé ici pour exemple)
 @st.cache_data
 def load_data():
-    df = pd.read_csv("restaurants-mr.csv")
-    
-    # Colonnes disponibles
-    st.write(" Colonnes disponibles :", df.columns.tolist())
+    data = pd.read_csv("user_item_matrix.csv", index_col=0)
+    return data
 
-    # Vérification des colonnes attendues
-    required_cols = ['reviews/0/name', 'title', 'totalScore']
-    if not all(col in df.columns for col in required_cols):
-        st.error(f"Les colonnes nécessaires sont absentes du fichier. Colonnes trouvées : {df.columns.tolist()}")
-        st.stop()
-    
-    df = df[required_cols]
-    df.columns = ['name', 'restaurant', 'stars']
-    return df
+df = load_data()
 
-# Charger les données
-ratings_df = load_data()
+# En-tête personnalisé
+st.markdown("""
+    <style>
+        .main {
+            background-color: #f8f9fa;
+            padding: 2rem;
+        }
+        h1, h2, h3 {
+            color: #1a73e8;
+            text-align: center;
+            font-family: 'Trebuchet MS', sans-serif;
+        }
+        .stSelectbox label {
+            font-weight: bold;
+            color: #444;
+        }
+        .reco-box {
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# Modèle de recommandation
-def build_model(df):
-    user_item_matrix = df.pivot_table(index='name', columns='restaurant', values='stars').fillna(0)
-    svd = TruncatedSVD(n_components=20, random_state=42)
-    svd.fit(user_item_matrix)
-    reconstructed = svd.transform(user_item_matrix) @ svd.components_
-    return user_item_matrix, reconstructed, svd
+st.title(" Guide Intelligent des Restaurants")
+st.markdown("###  Sélectionnez un utilisateur pour découvrir ses recommandations personnalisées")
 
-user_item_matrix, reconstructed_matrix, svd = build_model(ratings_df)
+users = df.index.tolist()
+selected_user = st.selectbox(" Utilisateur :", users)
 
-# Interface Streamlit
-st.markdown('##  Recommandation Personnalisée')
-st.subheader(" Restaurant Recommender System")
+# Méthode de recommandation
+def get_top_recommendations(user, n=5):
+    svd = TruncatedSVD(n_components=5)
+    matrix_reduced = svd.fit_transform(df)
+    reconstructed = svd.inverse_transform(matrix_reduced)
+    preds_df = pd.DataFrame(reconstructed, index=df.index, columns=df.columns)
+    top_items = preds_df.loc[user].sort_values(ascending=False).head(n)
+    return top_items
 
-# Sélection utilisateur
-usernames = user_item_matrix.index.tolist()
-selected_user = st.selectbox(" Sélectionnez un utilisateur :", usernames)
+st.markdown("## Suggestions Personnalisées")
+recs = get_top_recommendations(selected_user)
 
-if selected_user:
-    user_idx = user_item_matrix.index.get_loc(selected_user)
-    user_ratings = user_item_matrix.iloc[user_idx]
-    user_reconstructed = reconstructed_matrix[user_idx]
-
-    # Recommandations
-    unrated = user_ratings[user_ratings == 0]
-    preds = pd.Series(user_reconstructed, index=user_item_matrix.columns)
-    recommendations = preds[unrated.index].sort_values(ascending=False).head(5)
-
-    st.subheader(" Top Recommandations :")
-    for i, (resto, score) in enumerate(recommendations.items(), 1):
-        st.write(f"{i}. **{resto}** — Note prédite : {score:.2f}")
+for i, (resto, score) in enumerate(recs.items(), 1):
+    st.markdown(f'''
+    <div class="reco-box">
+        <strong>{i}. {resto}</strong><br>
+         Score estimé : <span style="color:#1a73e8;"><strong>{score:.2f}</strong></span>
+    </div>
+    ''', unsafe_allow_html=True)
