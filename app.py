@@ -3,56 +3,42 @@ import numpy as np
 import streamlit as st
 from sklearn.decomposition import TruncatedSVD
 
-# Configuration de la page
-st.set_page_config(page_title="Recommandation de Restaurants - Mauritanie", layout="wide")
-
-# Fonction pour charger les données
-@st.cache_data
-def charger_donnees():
-    data = pd.read_csv("restaurants-mr.csv")
-    data = data[['reviews/0/name', 'title', 'totalScore']]
-    data.columns = ['utilisateur', 'restaurant', 'note']
-    return data
-
-# Fonction pour entraîner le modèle SVD
-def creer_modele(df):
-    mat = df.pivot_table(index='utilisateur', columns='restaurant', values='note').fillna(0)
-    svd = TruncatedSVD(n_components=20, random_state=42)
-    svd.fit(mat)
-    predictions = svd.transform(mat) @ svd.components_
-    return mat, predictions
-
-# Titre et logo
-st.markdown("##  Application de Recommandation Intelligente")
-st.markdown("### Découvrez de nouveaux restaurants selon vos préférences ")
-
 # Chargement des données
-df = charger_donnees()
-matrice, prediction = creer_modele(df)
+@st.cache_data
+def load_data():
+    df = pd.read_csv("restaurants-mr.csv")
+    
+    # Colonnes disponibles
+    st.write(" Colonnes disponibles :", df.columns.tolist())
 
-# Sidebar pour la sélection utilisateur
-st.sidebar.markdown("##  Paramètres Utilisateur")
-utilisateur = st.sidebar.selectbox("Choisir un utilisateur :", matrice.index.tolist())
+    # Vérification des colonnes attendues
+    required_cols = ['reviews/0/name', 'title', 'totalScore']
+    if not all(col in df.columns for col in required_cols):
+        st.error(f"Les colonnes nécessaires sont absentes du fichier. Colonnes trouvées : {df.columns.tolist()}")
+        st.stop()
+    
+    df = df[required_cols]
+    df.columns = ['name', 'restaurant', 'stars']
+    return df
 
-# Génération des recommandations
-if utilisateur:
-    idx = matrice.index.get_loc(utilisateur)
-    notes = matrice.iloc[idx]
-    pred_series = pd.Series(prediction[idx], index=matrice.columns)
+# Charger les données
+ratings_df = load_data()
 
-    non_notes = notes[notes == 0]
-    reco = pred_series[non_notes.index].sort_values(ascending=False).head(5)
+# Modèle de recommandation
+def build_model(df):
+    user_item_matrix = df.pivot_table(index='name', columns='restaurant', values='stars').fillna(0)
+    svd = TruncatedSVD(n_components=20, random_state=42)
+    svd.fit(user_item_matrix)
+    reconstructed = svd.transform(user_item_matrix) @ svd.components_
+    return user_item_matrix, reconstructed, svd
 
-    st.markdown("---")
-    st.subheader(f" Suggestions personnalisées pour **{utilisateur}**")
-    for i, (resto, score) in enumerate(reco.items(), start=1):
-        with st.container():
-            st.write(f"**{i}. {resto}** —  Score estimé : `{round(score, 2)}`")
+user_item_matrix, reconstructed_matrix, svd = build_model(ratings_df)
 
-# Pied de page
-st.markdown("---")
-st.caption("Projet MLE413 — Streamlit App | Réalisé par [Zeineb]")
-ames = user_item_matrix.index.tolist()
+# Interface Streamlit
+st.title(" Restaurant Recommender System")
+
+# Sélection utilisateur
+usernames = user_item_matrix.index.tolist()
 selected_user = st.selectbox(" Sélectionnez un utilisateur :", usernames)
 
 if selected_user:
