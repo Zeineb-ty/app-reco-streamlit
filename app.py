@@ -1,44 +1,42 @@
-
 import streamlit as st
 import pandas as pd
+import random
 
-# Configuration de la page
-st.set_page_config(
-    page_title=" Restaurant Recommender - Mauritania",
-    layout="centered",
-    initial_sidebar_state="expanded"
+# Personnalisation du style
+st.set_page_config(page_title=" Smart Reco - Restaurants MR", layout="centered")
+
+st.markdown(
+    "<h1 style='text-align: center; color: #2E8B57;'> Smart Restaurant Recommender</h1>",
+    unsafe_allow_html=True
 )
+
+st.markdown("Bienvenue dans notre moteur intelligent de recommandation de restaurants en Mauritanie 🇲🇷. "
+            "Choisissez votre utilisateur pour découvrir les restaurants qu’il pourrait aimer !")
 
 # Chargement des données
 @st.cache_data
 def load_data():
-    df = pd.read_csv("restaurants-mr.csv")
-    return df
+    return pd.read_csv("restaurants-mr.csv")
 
 df = load_data()
 
-# En-tête stylisée
-st.markdown("<h1 style='color:#FF6347; font-size: 42px;'> Discover Mauritania's Hidden Food Gems</h1>", unsafe_allow_html=True)
-st.markdown("##### Explore local flavors and get personalized recommendations ")
+# Sélection utilisateur fictif
+users = df['user'].dropna().unique().tolist()
+user_selected = st.selectbox(" Sélectionnez un utilisateur :", users)
 
-# Liste déroulante pour choisir un restaurant
-restaurant_list = df['title'].dropna().unique().tolist()
-selected_restaurant = st.selectbox(" Select a restaurant you like:", restaurant_list)
+#  Nombre de recommandations
+top_n = st.slider(" Nombre de recommandations :", 1, 10, 5)
 
-# Slider pour choisir le nombre de suggestions
-top_n = st.slider(" Number of similar restaurants:", 1, 10, 5)
+#  Recommandation
+if st.button(" Lancer la recommandation"):
+    st.markdown("##  Recommandations personnalisées")
+    #  Pour cette démo, on choisit aléatoirement des restaurants notés par d'autres utilisateurs
+    other_recos = df[df['user'] != user_selected].sample(n=top_n, replace=True)
+    st.dataframe(other_recos[['title', 'rating']].reset_index(drop=True))
 
-# Recommandations
-if st.button(" Show Recommendations"):
-    st.markdown(f"### Similar to **{selected_restaurant}**:")
-    try:
-        # Basée sur la similarité de titre
-        mask = df['title'].str.contains(selected_restaurant[:4], case=False, na=False)
-        reco_df = df[mask].drop_duplicates('title').head(top_n)
-        st.dataframe(reco_df[['title', 'address', 'rating', 'reviews']])
-    except Exception as e:
-        st.error(f"Oops, something went wrong: {e}")
-
-# Pied de page
+#  Footer
 st.markdown("---")
-st.markdown("<p style='text-align:center; color:gray;'>Made with for Mauritania</p>", unsafe_allow_html=True)
+st.markdown(
+    "<div style='text-align: center;'>Développé avec  pour MLE413</div>",
+    unsafe_allow_html=True
+)
