@@ -1,62 +1,52 @@
-import pandas as pd
-import numpy as np
 import streamlit as st
-from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
+from surprise import Dataset, Reader, SVD
+from surprise.model_selection import train_test_split
 
-# Charger les données
+# Titre avec emoji et style
+st.markdown("<h1 style='color: teal;'>🍴 Recommandation Personnalisée de Restaurants en Mauritanie</h1>", unsafe_allow_html=True)
+
+# Chargement des données
 @st.cache_data
 def load_data():
     df = pd.read_csv("restaurants-mr.csv")
+    df = df[['user_name', 'title', 'note']].dropna()
     return df
 
 df = load_data()
 
-# Validation des colonnes
-required_cols = {'username', 'restaurant', 'rating'}
-if not required_cols.issubset(df.columns):
-    st.error(" Le fichier doit contenir les colonnes suivantes : username, restaurant, rating")
-    st.stop()
+# Liste des utilisateurs
+user_list = sorted(df["user_name"].unique())
 
-# Créer matrice utilisateur-item
-user_item_matrix = df.pivot_table(index="username", columns="restaurant", values="rating")
+# Choix utilisateur
+selected_user = st.selectbox(" Choisissez un utilisateur :", user_list)
 
-# Moyenne utilisateur
-user_mean = user_item_matrix.mean(axis=1)
-centered_matrix = user_item_matrix.sub(user_mean, axis=0).fillna(0)
+# Bouton pour lancer la recommandation
+if st.button(" Recommander des restaurants"):
+    # Préparation des données
+    reader = Reader(rating_scale=(0, 5))
+    data = Dataset.load_from_df(df[["user_name", "title", "note"]], reader)
+    trainset, _ = train_test_split(data, test_size=0.2)
 
-# Matrice de similarité cosinus
-similarity = cosine_similarity(centered_matrix)
-similarity_df = pd.DataFrame(similarity, index=user_item_matrix.index, columns=user_item_matrix.index)
+    model = SVD()
+    model.fit(trainset)
 
-# Interface
-st.set_page_config(page_title="RecoResto", layout="wide")
-st.markdown("<h1 style='text-align:center; color:#2c3e50;'>🍴 RecoResto : Vos Meilleurs Restaurants !</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;'>Découvrez les restaurants les mieux adaptés à vos goûts</p>", unsafe_allow_html=True)
-st.markdown("---")
+    # Liste des restaurants non notés par l’utilisateur
+    user_data = df[df["user_name"] == selected_user]
+    all_items = df["title"].unique()
+    rated_items = user_data["title"].unique()
+    items_to_predict = [item for item in all_items if item not in rated_items]
 
-with st.sidebar:
-    st.header(" Utilisateur")
-    user_list = user_item_matrix.index.tolist()
-    selected_user = st.selectbox("Sélectionnez un utilisateur :", user_list)
+    # Prédictions pour chaque restaurant non encore noté
+    predictions = []
+    for item in items_to_predict:
+        pred = model.predict(selected_user, item)
+        predictions.append((item, pred.est))
 
-def predict(user, item):
-    sims = similarity_df[user]
-    item_ratings = user_item_matrix[item]
+    # Trier par note prédite
+    predictions.sort(key=lambda x: x[1], reverse=True)
+    top_5 = predictions[:5]
 
-    mask = item_ratings.notna()
-    sims = sims[mask]
-    ratings = item_ratings[mask]
-
-    if sims.sum() == 0:
-        return 0.0
-
-    return np.dot(sims, ratings) / sims.sum()
-
-if selected_user:
-    unrated_items = user_item_matrix.loc[selected_user][user_item_matrix.loc[selected_user].isna()].index
-    predicted_scores = [(item, predict(selected_user, item)) for item in unrated_items]
-    top_recommendations = sorted(predicted_scores, key=lambda x: x[1], reverse=True)[:5]
-
-    st.subheader(f" Top 5 recommandations pour **{selected_user}** :")
-    for i, (resto, score) in enumerate(top_recommendations, 1):
-        st.markdown(f"**{i}. {resto}** —  Score estimé : `{round(score, 2)}`")
+    st.success(f"🍽️ Top 5 recommandations pour **{selected_user}** :")
+    for i, (restaurant, score) in enumerate(top_5, 1):
+        st.markdown(f"**{i}. {restaurant}** — Prédiction : {score:.2f}")
