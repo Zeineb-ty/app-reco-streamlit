@@ -35,7 +35,8 @@ def build_model(df):
 user_item_matrix, reconstructed_matrix, svd = build_model(ratings_df)
 
 # Interface Streamlit
-st.title(" Restaurant Recommender System")
+st.markdown('##  Recommandation Personnalisée')
+st.subheader(" Restaurant Recommender System")
 
 # Sélection utilisateur
 usernames = user_item_matrix.index.tolist()
