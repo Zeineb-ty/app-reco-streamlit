@@ -1,52 +1,72 @@
 import streamlit as st
 import pandas as pd
-from surprise import Dataset, Reader, SVD
-from surprise.model_selection import train_test_split
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-# Titre avec emoji et style
-st.markdown("<h1 style='color: teal;'>🍴 Recommandation Personnalisée de Restaurants en Mauritanie</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="Restaurant Recommender", page_icon="🍽️", layout="centered")
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f9f9f9;
+    }
+    .title {
+        text-align: center;
+        color: #4a4a4a;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# Chargement des données
+st.title("\U0001F372 Restaurant Recommendation System")
+
 @st.cache_data
 def load_data():
     df = pd.read_csv("restaurants-mr.csv")
-    df = df[['user_name', 'title', 'note']].dropna()
-    return df
+    all_reviews = []
+    for i in range(10):  # les 10 premiers avis maximum
+        name_col = f"reviews/{i}/name"
+        rating_col = f"reviews/{i}/rating"
+        if name_col in df.columns and rating_col in df.columns:
+            temp = df[["title", name_col, rating_col]].dropna()
+            temp.columns = ["restaurant", "username", "rating"]
+            all_reviews.append(temp)
+    return pd.concat(all_reviews, ignore_index=True)
 
-df = load_data()
+# Charger les données
+ratings_df = load_data()
 
-# Liste des utilisateurs
-user_list = sorted(df["user_name"].unique())
+# Pivot table user-item
+user_item_matrix = ratings_df.pivot_table(index='username', columns='restaurant', values='rating')
+user_similarity = cosine_similarity(user_item_matrix.fillna(0))
+user_similarity_df = pd.DataFrame(user_similarity, index=user_item_matrix.index, columns=user_item_matrix.index)
 
-# Choix utilisateur
-selected_user = st.selectbox(" Choisissez un utilisateur :", user_list)
+def get_recommendations(user, k=5):
+    if user not in user_item_matrix.index:
+        return []
+    # Moyenne des similarités avec les autres utilisateurs
+    sims = user_similarity_df[user].drop(user)
+    similar_users = sims.sort_values(ascending=False).index
 
-# Bouton pour lancer la recommandation
-if st.button(" Recommander des restaurants"):
-    # Préparation des données
-    reader = Reader(rating_scale=(0, 5))
-    data = Dataset.load_from_df(df[["user_name", "title", "note"]], reader)
-    trainset, _ = train_test_split(data, test_size=0.2)
+    # Prédictions pondérées
+    scores = {}
+    for other in similar_users:
+        other_ratings = user_item_matrix.loc[other]
+        similarity = sims[other]
+        for restaurant, rating in other_ratings.dropna().items():
+            if pd.isna(user_item_matrix.loc[user, restaurant]):
+                scores.setdefault(restaurant, 0)
+                scores[restaurant] += rating * similarity
 
-    model = SVD()
-    model.fit(trainset)
+    top_recos = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:k]
+    return [r[0] for r in top_recos]
 
-    # Liste des restaurants non notés par l’utilisateur
-    user_data = df[df["user_name"] == selected_user]
-    all_items = df["title"].unique()
-    rated_items = user_data["title"].unique()
-    items_to_predict = [item for item in all_items if item not in rated_items]
+# Interface
+user_input = st.selectbox("Choisissez un utilisateur :", options=sorted(user_item_matrix.index))
 
-    # Prédictions pour chaque restaurant non encore noté
-    predictions = []
-    for item in items_to_predict:
-        pred = model.predict(selected_user, item)
-        predictions.append((item, pred.est))
-
-    # Trier par note prédite
-    predictions.sort(key=lambda x: x[1], reverse=True)
-    top_5 = predictions[:5]
-
-    st.success(f"🍽️ Top 5 recommandations pour **{selected_user}** :")
-    for i, (restaurant, score) in enumerate(top_5, 1):
-        st.markdown(f"**{i}. {restaurant}** — Prédiction : {score:.2f}")
+if st.button("Recommander des restaurants"):
+    recos = get_recommendations(user_input)
+    if recos:
+        st.success(f"\U0001F4CC Recommandations pour *{user_input}* :")
+        for r in recos:
+            st.markdown(f"- **{r}**")
+    else:
+        st.warning("Aucune recommandation disponible pour cet utilisateur.")
