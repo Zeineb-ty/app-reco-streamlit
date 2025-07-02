@@ -1,72 +1,43 @@
+# app.py
 import streamlit as st
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 
-st.set_page_config(page_title="Restaurant Recommender", page_icon="🍽️", layout="centered")
-st.markdown("""
-    <style>
-    .stApp {
-        background-color: #f9f9f9;
-    }
-    .title {
-        text-align: center;
-        color: #4a4a4a;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("\U0001F372 Restaurant Recommendation System")
-
+# --- Chargement et nettoyage des données ---
 @st.cache_data
 def load_data():
     df = pd.read_csv("restaurants-mr.csv")
-    all_reviews = []
-    for i in range(10):  # les 10 premiers avis maximum
-        name_col = f"reviews/{i}/name"
-        rating_col = f"reviews/{i}/rating"
-        if name_col in df.columns and rating_col in df.columns:
-            temp = df[["title", name_col, rating_col]].dropna()
-            temp.columns = ["restaurant", "username", "rating"]
-            all_reviews.append(temp)
-    return pd.concat(all_reviews, ignore_index=True)
+    df_clean = df[["reviews/0/name", "title", "reviews/0/rating"]].dropna()
+    df_clean.columns = ["username", "restaurant", "rating"]
+    df_clean["rating"] = pd.to_numeric(df_clean["rating"], errors="coerce")
+    df_clean = df_clean.dropna(subset=["rating"])
+    return df_clean
 
-# Charger les données
-ratings_df = load_data()
+data = load_data()
 
-# Pivot table user-item
-user_item_matrix = ratings_df.pivot_table(index='username', columns='restaurant', values='rating')
-user_similarity = cosine_similarity(user_item_matrix.fillna(0))
-user_similarity_df = pd.DataFrame(user_similarity, index=user_item_matrix.index, columns=user_item_matrix.index)
+# --- Interface Streamlit ---
+st.set_page_config(page_title="Restaurant Recommender", layout="centered")
+st.title(" Recommande-moi un restaurant !")
 
-def get_recommendations(user, k=5):
-    if user not in user_item_matrix.index:
-        return []
-    # Moyenne des similarités avec les autres utilisateurs
-    sims = user_similarity_df[user].drop(user)
-    similar_users = sims.sort_values(ascending=False).index
+users = sorted(data["username"].unique())
+selected_user = st.selectbox("Choisis ton nom :", users)
 
-    # Prédictions pondérées
-    scores = {}
-    for other in similar_users:
-        other_ratings = user_item_matrix.loc[other]
-        similarity = sims[other]
-        for restaurant, rating in other_ratings.dropna().items():
-            if pd.isna(user_item_matrix.loc[user, restaurant]):
-                scores.setdefault(restaurant, 0)
-                scores[restaurant] += rating * similarity
+# --- Génération des recommandations ---
+if selected_user:
+    user_item_matrix = data.pivot_table(index="username", columns="restaurant", values="rating")
+    similarity_matrix = cosine_similarity(user_item_matrix.fillna(0))
+    similarity_df = pd.DataFrame(similarity_matrix, index=user_item_matrix.index, columns=user_item_matrix.index)
 
-    top_recos = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:k]
-    return [r[0] for r in top_recos]
+    # Scores pondérés par similarité
+    user_similarities = similarity_df[selected_user].drop(selected_user)
+    unrated_restaurants = user_item_matrix.loc[selected_user].isna()
+    weighted_scores = user_item_matrix.T.dot(user_similarities).loc[unrated_restaurants]
 
-# Interface
-user_input = st.selectbox("Choisissez un utilisateur :", options=sorted(user_item_matrix.index))
+    top_recommendations = weighted_scores.sort_values(ascending=False).head(5)
 
-if st.button("Recommander des restaurants"):
-    recos = get_recommendations(user_input)
-    if recos:
-        st.success(f"\U0001F4CC Recommandations pour *{user_input}* :")
-        for r in recos:
-            st.markdown(f"- **{r}**")
+    if not top_recommendations.empty:
+        st.subheader(" Recommandations pour toi :")
+        for i, (resto, score) in enumerate(top_recommendations.items(), start=1):
+            st.markdown(f"**{i}. {resto}** — score estimé : `{score:.2f}`")
     else:
-        st.warning("Aucune recommandation disponible pour cet utilisateur.")
+        st.info("Aucune recommandation possible pour ce profil (trop peu de données).")
